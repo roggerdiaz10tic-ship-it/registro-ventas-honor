@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Sistema Registro de Ventas</title>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;margin:0}
+.hidden{display:none!important}
+
+/* LOGIN */
+.login{max-width:400px;margin:80px auto;background:#fff;padding:20px;border-radius:8px}
+
+/* LAYOUT */
+.container{display:flex;min-height:100vh}
+
+/* RESUMEN */
+.resumen{
+  width:330px;background:#1f2937;color:white;padding:15px;
+  position:sticky;top:0;height:100vh;overflow:auto;transition:.3s
+}
+.resumen.hidden{width:0;padding:0;overflow:hidden}
+.resumen textarea{width:100%;height:420px;resize:none;padding:10px}
+
+/* FORM */
+.main{flex:1;padding:20px}
+form{background:white;padding:20px;border-radius:8px;max-width:1100px;margin:auto}
+label{font-weight:bold;display:block;margin-bottom:4px}
+input,select,button{
+  width:100%;height:42px;padding:8px;margin-bottom:12px;box-sizing:border-box
+}
+button{background:#0078d4;color:white;border:none;border-radius:4px;cursor:pointer}
+.top-actions{display:flex;gap:10px;margin-bottom:15px}
+.toggle{background:#111827}
+.logout{background:#6b7280}
+
+/* REFERENCIAS */
+.referencias{display:grid;grid-template-columns:1fr 80px;gap:6px;margin-bottom:6px}
+
+/* ADMIN */
+.box{background:white;padding:20px;border-radius:8px;max-width:1400px;margin:40px auto}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{border:1px solid #ccc;padding:6px;font-size:13px}
+th{background:#0078d4;color:white}
+.danger{background:#c0392b}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginBox">
+<h2>Ingreso</h2>
+<label>Usuario</label>
+<select id="usuario">
+<option value="">Seleccione</option>
+<option>Daniel Vanoy</option>
+<option>Diana Pardo</option>
+<option>Marcela Huertas</option>
+<option>Hector Guerrero</option>
+<option>Vanessa Sarmiento</option>
+<option>Viviana Mora</option>
+<option>Jhonatan Romero</option>
+<option>Mauricio Lazo</option>
+<option>Jose Valencia</option>
+<option>Jose Lujan</option>
+<option>Vivián Avellaneda</option>
+<option>admin</option>
+</select>
+
+<label>Contraseña</label>
+<input type="password" id="clave">
+<button onclick="login()">Ingresar</button>
+</div>
+
+<!-- VISTA EDC -->
+<div class="container hidden" id="vistaEDC">
+
+<div class="resumen" id="panelResumen">
+<h3>Resumen Copiable</h3>
+<textarea id="textoResumen" readonly></textarea>
+</div>
+
+<div class="main">
+<div class="top-actions">
+<button class="toggle" onclick="toggleResumen()">Mostrar / Ocultar Resumen</button>
+<button class="logout" onclick="salirMenu()">Salir al menú</button>
+</div>
+
+<form id="formEDC">
+
+<h2>Registro de Ventas</h2>
+
+<label>EDC</label><input id="edc" readonly>
+<label>Regional</label><input id="regional" readonly>
+
+<label>Canal</label>
+<select id="canal" onchange="cargarReferenciasPorCanal();actualizarResumen()" required>
+<option value="">Seleccione Canal</option>
+<option>COMQUIA</option>
+<option>TOYAR</option>
+</select>
+
+<label>Cliente</label><input id="cliente" oninput="actualizarResumen()" required>
+<label>Dueño del Punto</label><input id="dueno" required>
+<label>Encargado</label><input id="encargado" required>
+<label>Teléfono (Colombia)</label><input id="telefono" required pattern="[0-9]{10}">
+
+<label>¿Cuenta con Inventario?</label>
+<select id="tieneInventario" onchange="toggleInventario()" required>
+<option value="">Seleccione</option>
+<option>Sí</option>
+<option>No</option>
+</select>
+
+<label>Cantidad de Inventario</label>
+<input type="number" id="cantidadInventario" value="0" disabled>
+
+<label>Ciudad</label><input id="ciudad" required>
+<label>Dirección</label><input id="direccion" required>
+
+<hr>
+<h3>Referencias del Canal</h3>
+<div id="refsCanal"></div>
+
+<h3>Accesorios y ECO</h3>
+<div id="refsAccesorios"></div>
+
+<button type="submit">Guardar Registro</button>
+</form>
+</div>
+</div>
+
+<!-- ADMIN -->
+<div class="box hidden" id="panelAdmin">
+<h2>Panel Administrador</h2>
+<button onclick="exportarExcel()">Exportar a Excel</button>
+<table>
+<thead>
+<tr>
+<th>Fecha</th><th>EDC</th><th>Canal</th><th>Cliente</th>
+<th>Detalle</th><th>Inventario</th><th>Cant.</th>
+<th>Ciudad</th><th>Regional</th><th>Acción</th>
+</tr>
+</thead>
+<tbody id="tabla"></tbody>
+</table>
+<button class="logout" onclick="salirMenu()">Salir al menú</button>
+</div>
+
+<script>
+// USUARIOS
+const usuarios={
+ admin:"admin123",
+ "Daniel Vanoy":"1234","Diana Pardo":"1234","Marcela Huertas":"1234",
+ "Hector Guerrero":"1234","Vanessa Sarmiento":"1234",
+ "Viviana Mora":"1234","Jhonatan Romero":"1234","Mauricio Lazo":"1234",
+ "Jose Valencia":"1234","Jose Lujan":"1234","Vivián Avellaneda":"1234"
+};
+
+const region={
+ "Daniel Vanoy":"Center 1","Diana Pardo":"Center 2","Marcela Huertas":"Center 3",
+ "Hector Guerrero":"Coast 1","Vanessa Sarmiento":"Coast 2",
+ "Viviana Mora":"Coffee & West 1","Jhonatan Romero":"Coffee & West 2",
+ "Mauricio Lazo":"Coffee & West 3",
+ "Jose Valencia":"East 1","Jose Lujan":"East 2","Vivián Avellaneda":"East 3"
+};
+
+const referenciasPorCanal={
+ COMQUIA:[
+ "H400 Smart + 6","H400 Smart +12","Honor 200 Smart",
+ "Honor Magic 7 Lite 256Gb","Honor Magic 7 Lite 512Gb",
+ "Honor Magic 8 Lite 256Gb","Honor Pad X8A 128GB",
+ "Honor Play 9A 64GB","Honor Play 9C 256GB",
+ "Honor X5B 128GB","Honor X5B Plus",
+ "HONOR X5C 128GB","HONOR X5C 64GB",
+ "HONOR X6B 128GB","Honor X6B 256GB",
+ "HONOR X6C 128GB","Honor X6C 256GB",
+ "HONOR X7D","HONOR X8C 512GB",
+ "Honor X8D 512GB","X6C 256 Claro V"
+ ],
+ TOYAR:[
+ "H400 Smart +12","Honor Play 9A 128GB",
+ "HONOR X5C 64GB","HONOR X6C 128GB",
+ "Honor X6C 256GB","HONOR X8C 512GB",
+ "Honor X8D 512GB","Honor X9C Smart 256GB"
+ ]
+};
+
+const accesoriosEco=[
+ "Honor Headphone","Honor OWS","Honor Clip",
+ "Airfryer","Cleaner Rob vaccum",
+ "Earbuds X7e","Scooter","Watch 2i"
+];
+
+let registros=JSON.parse(localStorage.getItem("registros"))||[];
+let usuarioActivo="";
+
+function login(){
+ const u=usuario.value,p=clave.value;
+ if(!usuarios[u]||usuarios[u]!==p){alert("Credenciales incorrectas");return;}
+ loginBox.classList.add("hidden");
+ if(u==="admin"){panelAdmin.classList.remove("hidden");cargarTabla();}
+ else{usuarioActivo=u;vistaEDC.classList.remove("hidden");edc.value=u;regional.value=region[u];}
+}
+
+function salirMenu(){
+ vistaEDC.classList.add("hidden");
+ panelAdmin.classList.add("hidden");
+ loginBox.classList.remove("hidden");
+ formEDC.reset();
+ textoResumen.value="";
+ cantidadInventario.disabled=true;
+}
+
+function toggleInventario(){
+ cantidadInventario.disabled=tieneInventario.value!=="Sí";
+ if(tieneInventario.value!=="Sí")cantidadInventario.value=0;
+}
+
+function cargarReferenciasPorCanal(){
+ refsCanal.innerHTML="";
+ refsAccesorios.innerHTML="";
+ (referenciasPorCanal[canal.value]||[]).forEach(r=>{
+  refsCanal.innerHTML+=`<div class="referencias"><div>${r}</div><input type="number" min="0" data-ref="${r}" oninput="actualizarResumen()"></div>`;
+ });
+ accesoriosEco.forEach(r=>{
+  refsAccesorios.innerHTML+=`<div class="referencias"><div>${r}</div><input type="number" min="0" data-ref="${r}" oninput="actualizarResumen()"></div>`;
+ });
+}
+
+function actualizarResumen(){
+ let txt="Confirmo Inyección\n\nCliente: "+(cliente.value||"")+
+ "\nProveedor: "+(canal.value||"")+"\n\nReferencias:\n";
+ let total=0;
+ document.querySelectorAll("[data-ref]").forEach(i=>{
+  if(i.value>0){txt+=`${i.dataset.ref} : ${i.value}\n`;total+=+i.value;}
+ });
+ txt+="\nTotal : "+total;
+ textoResumen.value=txt;
+}
+
+formEDC.addEventListener("submit",e=>{
+ e.preventDefault();
+ registros.push({
+  fecha:new Date().toLocaleString(),edc:usuarioActivo,
+  canal:canal.value,cliente:cliente.value,
+  refs:textoResumen.value,
+  inventario:tieneInventario.value,
+  cantidadInventario:cantidadInventario.value,
+  ciudad:ciudad.value,regional:regional.value
+ });
+ localStorage.setItem("registros",JSON.stringify(registros));
+ alert("Registro guardado");
+ formEDC.reset();textoResumen.value="";
+});
+
+function cargarTabla(){
+ tabla.innerHTML="";
+ registros.forEach((r,i)=>{
+  tabla.innerHTML+=`<tr>
+  <td>${r.fecha}</td><td>${r.edc}</td><td>${r.canal}</td>
+  <td>${r.cliente}</td><td>${r.refs.replace(/\n/g,"<br>")}</td>
+  <td>${r.inventario}</td><td>${r.cantidadInventario}</td>
+  <td>${r.ciudad}</td><td>${r.regional}</td>
+  <td><button class="danger" onclick="eliminar(${i})">Eliminar</button></td>
+  </tr>`;
+ });
+}
+
+function eliminar(i){
+ if(confirm("Eliminar registro?")){
+  registros.splice(i,1);
+  localStorage.setItem("registros",JSON.stringify(registros));
+  cargarTabla();
+ }
+}
+
+function exportarExcel(){
+ let csv="Fecha,EDC,Canal,Cliente,Detalle,Inventario,Cantidad,Ciudad,Regional\n";
+ registros.forEach(r=>{
+  csv+=`${r.fecha},${r.edc},${r.canal},${r.cliente},${r.refs.replace(/\n/g," ")},${r.inventario},${r.cantidadInventario},${r.ciudad},${r.regional}\n`;
+ });
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+ a.download="ventas.csv";a.click();
+}
+</script>
+
+</body>
+</html>
